@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --ink: #1f2328;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #0f6b3f;
+      --accent-soft: #e8f3ed;
+      --warn: #b42318;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap { padding: 12px 12px 28px; }
+
+    /* ---------- status bar ---------- */
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 12px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #cbd5e1; flex: none;
+    }
+    .dot.ok { background: var(--accent); }
+    .dot.err { background: var(--warn); }
+    .dot.busy { background: #d97706; animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .3; } }
+    .bar .cell {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .bar .meta { color: var(--muted); font-size: 11px; margin-left: auto; }
+
+    /* ---------- current cell preview ---------- */
+    .preview {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 9px 11px;
+      min-height: 44px;
+      background: #fafafa;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12.5px;
+    }
+    .preview .empty { color: var(--muted); font-style: italic; }
+    .preview .ghost { color: #9aa3ae; }
+
+    /* ---------- buttons ---------- */
+    .row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+    button {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 12px;
+      cursor: pointer;
+      transition: background .12s, border-color .12s;
+    }
+    button:hover:not(:disabled) { background: #f3f4f6; }
+    button:disabled { opacity: .5; cursor: default; }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      flex: 1;
+    }
+    button.primary:hover:not(:disabled) { background: #0c5733; }
+
+    .toggle {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--muted); cursor: pointer;
+      user-select: none;
+    }
+    .toggle input { margin: 0; }
+
+    /* ---------- suggestions ---------- */
+    h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin: 18px 0 8px;
+      font-weight: 600;
+    }
+    .sugg {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 9px 11px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      position: relative;
+      background: #fff;
+      transition: border-color .12s, background .12s;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .sugg:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .sugg .num {
+      position: absolute; top: 8px; right: 9px;
+      font-size: 10px; color: var(--muted);
+      border: 1px solid var(--line); border-radius: 4px;
+      padding: 0 4px; background: #fff;
+    }
+    .sugg .kept { color: var(--muted); }
+    .sugg .new { font-weight: 600; }
+    .sugg-body { padding-right: 26px; }
+
+    /* ---------- range panel ---------- */
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 10px 11px;
+      margin-top: 14px;
+      background: #fcfcfd;
+    }
+    .panel .title {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted); font-weight: 600; margin-bottom: 6px;
+    }
+    .panel .big { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .panel .sub { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+    .track {
+      height: 5px; border-radius: 3px; background: var(--line);
+      overflow: hidden; margin-top: 10px;
+    }
+    .track > div {
+      height: 100%; width: 0%; background: var(--accent);
+      transition: width .2s ease;
+    }
+    .log {
+      margin-top: 8px; max-height: 120px; overflow-y: auto;
+      font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+    }
+    .log div { padding: 1px 0; }
+    .log .bad { color: var(--warn); }
+
+    .hint { color: var(--muted); font-size: 11px; margin-top: 8px; }
+    .err {
+      background: #fef3f2; border: 1px solid #fecdca; color: var(--warn);
+      border-radius: 8px; padding: 8px 10px; font-size: 12px; margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .ok-msg {
+      background: var(--accent-soft); border: 1px solid #bfe0cf; color: var(--accent);
+      border-radius: 8px; padding: 8px 10px; font-size: 12px; margin-top: 10px;
+    }
+
+    /* ---------- settings ---------- */
+    details {
+      margin-top: 18px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+    summary {
+      cursor: pointer; font-size: 12px; color: var(--muted);
+      font-weight: 600; list-style: none; outline: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: '▸ '; }
+    details[open] summary::before { content: '▾ '; }
+
+    label.field { display: block; margin-top: 12px; }
+    label.field > span {
+      display: block; font-size: 11px; color: var(--muted);
+      margin-bottom: 4px; font-weight: 600;
+    }
+    input[type=text], input[type=password], select, textarea {
+      width: 100%; font: inherit; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 7px;
+      background: #fff; color: var(--ink);
+    }
+    textarea { resize: vertical; min-height: 56px; }
+    input[type=range] { width: 100%; }
+    .checks { margin-top: 12px; display: grid; gap: 7px; }
+    .checks label { display: flex; gap: 7px; align-items: flex-start; font-size: 12px; cursor: pointer; }
+    .checks label input { margin: 2px 0 0; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .foot { margin-top: 14px; font-size: 11px; color: var(--muted); }
+    .foot a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="bar">
+    <span class="dot" id="dot"></span>
+    <span class="cell" id="cellRef">—</span>
+    <span class="meta" id="ctxMeta"></span>
+  </div>
+
+  <div class="preview" id="preview"><span class="empty">Click a cell in the sheet…</span></div>
+
+  <div class="row">
+    <button class="primary" id="btnSuggest" onclick="requestSuggestions()">Suggest</button>
+    <label class="toggle" title="Suggest automatically ~1s after you stop editing a cell">
+      <input type="checkbox" id="autoSuggest" onchange="onAutoToggle()">
+      Auto
+    </label>
+  </div>
+
+  <div id="msg"></div>
+
+  <div id="suggWrap" style="display:none">
+    <h3 id="suggTitle">Suggestions</h3>
+    <div id="suggList"></div>
+    <div class="hint">Click a suggestion to write it into the cell.</div>
+  </div>
+
+  <div class="panel" id="rangePanel" style="display:none">
+    <div class="title">Selection</div>
+    <div class="big" id="rangeRef">—</div>
+    <div class="sub" id="rangeSub"></div>
+
+    <label class="toggle" style="margin-top:9px">
+      <input type="checkbox" id="skipFilled" checked onchange="renderSelection(current && current.selection)">
+      Skip cells that already have content
+    </label>
+
+    <div class="row">
+      <button class="primary" id="btnRun" onclick="runRange()">Complete range</button>
+      <button id="btnStop" onclick="stopRange()" style="display:none">Stop</button>
+    </div>
+
+    <div class="track" id="track" style="display:none"><div id="trackBar"></div></div>
+    <div class="log" id="rangeLog"></div>
+  </div>
+
+  <details id="ctx" open>
+    <summary>Project context</summary>
+    <div class="sub" style="color:var(--muted);font-size:11.5px;margin:6px 0 0">
+      Background about your product and this sheet. Sent with every suggestion.
+    </div>
+
+    <label class="field">
+      <span>About this product / sheet — <b id="ctxCount">0</b>/4000</span>
+      <textarea id="projectContext" style="min-height:110px" oninput="onCtxInput()" onchange="persist()"
+        placeholder="e.g. Flownix is a gym management app. This sheet is the bug backlog; one row is one defect found in QA. Core flows: walk-in enquiry, membership signup, pantry orders, class booking…"></textarea>
+    </label>
+
+    <div class="row">
+      <button id="btnDraft" onclick="draftContext()">Draft from sheet</button>
+    </div>
+
+    <label class="toggle" style="margin-top:10px">
+      <input type="checkbox" id="useSheetMap" onchange="persist()">
+      Also send the workbook structure (tab names + column headers)
+    </label>
+  </details>
+
+  <details id="settings">
+    <summary>Settings</summary>
+
+    <label class="field">
+      <span>Groq API key</span>
+      <input type="password" id="apiKey" placeholder="gsk_…" autocomplete="off">
+    </label>
+    <div class="row">
+      <button onclick="saveKey()">Save key</button>
+      <button onclick="testConn()">Test connection</button>
+    </div>
+
+    <label class="field">
+      <span>Model</span>
+      <select id="model" onchange="persist()"></select>
+    </label>
+    <div class="row">
+      <button id="btnModels" onclick="refreshModels()">Refresh models</button>
+    </div>
+
+    <label class="field">
+      <span>Tone / style instructions</span>
+      <textarea id="instruction" onchange="persist()"
+        placeholder="e.g. British English, max 12 words, no marketing fluff, always start with a verb"></textarea>
+    </label>
+
+    <div class="checks">
+      <label><input type="checkbox" id="useHeader" onchange="persist()">
+        <span>Use the column header</span></label>
+      <label><input type="checkbox" id="useRow" onchange="persist()">
+        <span>Use other values in the same row as facts</span></label>
+      <label><input type="checkbox" id="useNeighbours" onchange="persist()">
+        <span>Use nearby entries in the column as style examples</span></label>
+    </div>
+
+    <div class="grid2">
+      <label class="field">
+        <span>Suggestions</span>
+        <select id="numSuggestions" onchange="persist()">
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Example rows ±</span>
+        <select id="neighbourCount" onchange="persist()">
+          <option>3</option><option>5</option><option>8</option><option>12</option><option>20</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="field">
+      <span>Creativity — <b id="tempVal">0.4</b></span>
+      <input type="range" id="temperature" min="0" max="1" step="0.05" oninput="onTemp()" onchange="persist()">
+    </label>
+
+    <div class="grid2">
+      <label class="field">
+        <span>Header row</span>
+        <input type="text" id="headerRow" onchange="persist()">
+      </label>
+      <label class="field">
+        <span>Response length</span>
+        <select id="maxTokens" onchange="persist()">
+          <option value="250">Short</option>
+          <option value="500">Normal</option>
+          <option value="1000">Long</option>
+          <option value="2000">Very long</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="foot">
+      Runs entirely in your own Apps Script project against your own Groq key.
+      Free-tier keys: <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>
+    </div>
+  </details>
+
+</div>
+
+<script>
+  var S = null;              // settings cache
+  var lastSig = '';          // active-cell signature, to detect movement
+  var current = null;        // last context from the server
+  var lastResult = null;     // last suggestion payload
+  var busy = false;
+  var autoTimer = null;
+
+  /* ---------- boot ---------- */
+  function boot() {
+    google.script.run
+      .withSuccessHandler(function (s) {
+        S = s;
+        setModelOptions(s.models, s.model);
+        document.getElementById('instruction').value = s.instruction || '';
+        document.getElementById('projectContext').value = s.projectContext || '';
+        document.getElementById('useSheetMap').checked = !!s.useSheetMap;
+        onCtxInput();
+        document.getElementById('useHeader').checked = !!s.useHeader;
+        document.getElementById('useRow').checked = !!s.useRow;
+        document.getElementById('useNeighbours').checked = !!s.useNeighbours;
+        document.getElementById('numSuggestions').value = String(s.numSuggestions);
+        document.getElementById('neighbourCount').value = String(s.neighbourCount);
+        document.getElementById('temperature').value = s.temperature;
+        document.getElementById('tempVal').textContent = Number(s.temperature).toFixed(2);
+        document.getElementById('headerRow').value = s.headerRow;
+        document.getElementById('maxTokens').value = String(s.maxTokens);
+        document.getElementById('autoSuggest').checked = !!s.autoSuggest;
+        if (!s.hasKey) {
+          document.getElementById('settings').open = true;
+          setMsg('Add your Groq API key below to start.', 'err');
+        }
+        if (s.hasKey) refreshModels(true);
+        poll();
+      })
+      .withFailureHandler(function (e) { setMsg(e.message, 'err'); })
+      .getSettings();
+  }
+
+  /* ---------- model list ---------- */
+  function setModelOptions(models, selected) {
+    var sel = document.getElementById('model');
+    sel.innerHTML = '';
+    var found = false;
+    models.forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = m.id; o.textContent = m.label;
+      if (m.id === selected) found = true;
+      sel.appendChild(o);
+    });
+    // Keep a saved-but-unlisted model visible rather than silently switching it.
+    if (selected && !found) {
+      var o = document.createElement('option');
+      o.value = selected; o.textContent = selected + '  ·  not offered by your key';
+      sel.insertBefore(o, sel.firstChild);
+    }
+    sel.value = selected || (models[0] && models[0].id);
+  }
+
+  function refreshModels(silent) {
+    var btn = document.getElementById('btnModels');
+    if (btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+    google.script.run
+      .withSuccessHandler(function (models) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Refresh models'; }
+        setModelOptions(models, document.getElementById('model').value);
+        if (!silent) setMsg(models.length + ' models available on your key.', 'ok-msg');
+      })
+      .withFailureHandler(function (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Refresh models'; }
+        if (!silent) setMsg(e.message, 'err');
+      })
+      .listModels();
+  }
+
+  /* ---------- active-cell polling ---------- */
+  function poll() {
+    if (running) { setTimeout(poll, 1500); return; }
+    google.script.run
+      .withSuccessHandler(onContext)
+      .withFailureHandler(function () { setTimeout(poll, 2000); })
+      .getCellContext();
+  }
+
+  function onContext(ctx) {
+    current = ctx;
+    var sig = ctx.sheetName + '!' + ctx.a1 + '|' + ctx.text +
+      '|' + (ctx.selection ? ctx.selection.a1 + ':' + ctx.selection.total : '');
+    if (sig !== lastSig) {
+      lastSig = sig;
+      render(ctx);
+      if (document.getElementById('autoSuggest').checked) scheduleAuto();
+    }
+    setTimeout(poll, 900);
+  }
+
+  function renderSelection(sel) {
+    var panel = document.getElementById('rangePanel');
+    if (!sel || sel.total <= 1) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+
+    document.getElementById('rangeRef').textContent =
+      sel.a1 + '  ·  ' + sel.rows + ' row' + (sel.rows === 1 ? '' : 's') +
+      ' × ' + sel.cols + ' col' + (sel.cols === 1 ? '' : 's');
+
+    var sub;
+    if (sel.truncated) {
+      sub = sel.total + ' cells — too many to scan. Select fewer than 400.';
+    } else {
+      sub = sel.total + ' cells · ' + sel.empty + ' empty · ' + (sel.total - sel.empty) + ' filled';
+    }
+    document.getElementById('rangeSub').textContent = sub;
+
+    var btn = document.getElementById('btnRun');
+    btn.disabled = !!sel.truncated || running;
+    if (!running) btn.textContent = 'Complete ' + plannedCount(sel) + ' cells';
+  }
+
+  function plannedCount(sel) {
+    if (!sel || !sel.cells) return 0;
+    var skip = document.getElementById('skipFilled').checked;
+    return sel.cells.filter(function (c) { return skip ? !c.filled : true; }).length;
+  }
+
+  function render(ctx) {
+    document.getElementById('cellRef').textContent = ctx.sheetName + '!' + ctx.a1;
+    var bits = [];
+    if (S && S.useHeader && ctx.header) bits.push(ctx.header);
+    if (S && S.useNeighbours && ctx.neighbours.length) bits.push(ctx.neighbours.length + ' examples');
+    if (S && S.useRow && ctx.rowPairs.length) bits.push(ctx.rowPairs.length + ' row fields');
+    document.getElementById('ctxMeta').textContent = bits.join(' · ');
+
+    var p = document.getElementById('preview');
+    if (ctx.text) {
+      p.textContent = ctx.text;
+    } else {
+      p.innerHTML = '<span class="empty">Empty cell — a suggestion will fill it.</span>';
+    }
+    clearSuggestions();
+    renderSelection(ctx.selection);
+  }
+
+  function scheduleAuto() {
+    if (autoTimer) clearTimeout(autoTimer);
+    autoTimer = setTimeout(requestSuggestions, 1100);
+  }
+
+  function onAutoToggle() {
+    persist();
+    if (document.getElementById('autoSuggest').checked) scheduleAuto();
+    else if (autoTimer) clearTimeout(autoTimer);
+  }
+
+  /* ---------- suggestions ---------- */
+  function requestSuggestions() {
+    if (busy) return;
+    busy = true;
+    setDot('busy');
+    setMsg('');
+    document.getElementById('btnSuggest').disabled = true;
+    document.getElementById('btnSuggest').textContent = 'Thinking…';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        busy = false;
+        resetButton();
+        setDot('ok');
+        lastResult = res;
+        showSuggestions(res);
+      })
+      .withFailureHandler(function (e) {
+        busy = false;
+        resetButton();
+        setDot('err');
+        setMsg(e.message || String(e), 'err');
+      })
+      .suggest(collect());
+  }
+
+  function showSuggestions(res) {
+    var list = document.getElementById('suggList');
+    list.innerHTML = '';
+    if (!res.completions.length) {
+      setMsg('No suggestion came back — try again or raise creativity.', 'err');
+      return;
+    }
+    document.getElementById('suggTitle').textContent =
+      res.mode === 'continue' ? 'Continue ' + res.a1 : 'Fill ' + res.a1;
+
+    res.completions.forEach(function (c, i) {
+      var div = document.createElement('div');
+      div.className = 'sugg';
+      var body = document.createElement('div');
+      body.className = 'sugg-body';
+      if (res.mode === 'continue') {
+        var kept = document.createElement('span');
+        kept.className = 'kept';
+        kept.textContent = res.prefix;
+        var neu = document.createElement('span');
+        neu.className = 'new';
+        neu.textContent = (/\s$/.test(res.prefix) || /^\s/.test(c) || /^[,.;:!?')\]]/.test(c) ? '' : ' ') + c;
+        body.appendChild(kept);
+        body.appendChild(neu);
+      } else {
+        body.textContent = c;
+      }
+      var num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = i + 1;
+      div.appendChild(body);
+      div.appendChild(num);
+      div.onclick = function () { apply(c); };
+      list.appendChild(div);
+    });
+    document.getElementById('suggWrap').style.display = '';
+  }
+
+  function clearSuggestions() {
+    document.getElementById('suggWrap').style.display = 'none';
+    document.getElementById('suggList').innerHTML = '';
+  }
+
+  function apply(completion) {
+    if (!lastResult) return;
+    google.script.run
+      .withSuccessHandler(function () {
+        clearSuggestions();
+        setMsg('Written to ' + lastResult.a1 + '.', 'ok-msg');
+        setTimeout(function () { setMsg(''); }, 1800);
+      })
+      .withFailureHandler(function (e) { setMsg(e.message, 'err'); })
+      .applyCompletion(lastResult.a1, completion, lastResult.mode, lastResult.sheetName);
+  }
+
+  /* ---------- batch over a selection ---------- */
+  var running = false;
+  var cancel = false;
+
+  function stopRange() { cancel = true; logLine('Stopping after this cell…'); }
+
+  function logLine(text, bad) {
+    var log = document.getElementById('rangeLog');
+    var d = document.createElement('div');
+    if (bad) d.className = 'bad';
+    d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function runRange() {
+    if (running || !current || !current.selection || !current.selection.cells) return;
+    var skip = document.getElementById('skipFilled').checked;
+    var queue = current.selection.cells
+      .filter(function (c) { return skip ? !c.filled : true; })
+      .map(function (c) { return c.a1; });
+
+    if (!queue.length) { setMsg('Nothing to do — every selected cell already has content.', 'ok-msg'); return; }
+
+    running = true;
+    cancel = false;
+    var sheetName = current.sheetName;
+    var opts = collect();
+    var done = 0, written = 0, skipped = 0, failed = 0;
+
+    document.getElementById('rangeLog').innerHTML = '';
+    document.getElementById('track').style.display = '';
+    document.getElementById('btnStop').style.display = '';
+    var runBtn = document.getElementById('btnRun');
+    runBtn.disabled = true;
+    setDot('busy');
+    logLine(queue.length + ' cells queued on ' + sheetName);
+
+    function tick() {
+      if (cancel || !queue.length) return finish();
+      var a1 = queue.shift();
+      runBtn.textContent = 'Working… ' + (done + 1) + '/' + (done + 1 + queue.length);
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          done++;
+          if (res.status === 'written') { written++; logLine(res.a1 + '  ' + res.value); }
+          else if (res.status === 'skipped') { skipped++; }
+          else { failed++; logLine(res.a1 + '  — ' + res.reason, true); }
+          advance();
+        })
+        .withFailureHandler(function (e) {
+          done++; failed++;
+          logLine(a1 + '  — ' + (e.message || e), true);
+          // A rate-limit needs a longer pause than the normal cadence.
+          setTimeout(advance, /429|rate limit/i.test(e.message || '') ? 4000 : 0);
+        })
+        .completeCell(sheetName, a1, opts, skip);
+
+      function advance() {
+        var total = done + queue.length;
+        document.getElementById('trackBar').style.width = Math.round((done / total) * 100) + '%';
+        // ~250ms between calls keeps us inside Groq's 30 requests/minute free tier.
+        setTimeout(tick, 250);
+      }
+    }
+
+    function finish() {
+      running = false;
+      runBtn.disabled = false;
+      document.getElementById('btnStop').style.display = 'none';
+      document.getElementById('trackBar').style.width = '100%';
+      setDot(failed ? 'err' : 'ok');
+      logLine('Done — ' + written + ' written' +
+        (skipped ? ', ' + skipped + ' skipped' : '') +
+        (failed ? ', ' + failed + ' failed' : '') +
+        (cancel ? ' (stopped early)' : ''));
+      lastSig = '';  // force a refresh of the selection summary
+      poll();
+    }
+
+    tick();
+  }
+
+  /* ---------- settings ---------- */
+  function collect() {
+    return {
+      model: document.getElementById('model').value,
+      instruction: document.getElementById('instruction').value,
+      projectContext: document.getElementById('projectContext').value,
+      useSheetMap: document.getElementById('useSheetMap').checked,
+      useHeader: document.getElementById('useHeader').checked,
+      useRow: document.getElementById('useRow').checked,
+      useNeighbours: document.getElementById('useNeighbours').checked,
+      numSuggestions: Number(document.getElementById('numSuggestions').value),
+      neighbourCount: Number(document.getElementById('neighbourCount').value),
+      temperature: Number(document.getElementById('temperature').value),
+      headerRow: Number(document.getElementById('headerRow').value) || 1,
+      maxTokens: Number(document.getElementById('maxTokens').value) || 500,
+      autoSuggest: document.getElementById('autoSuggest').checked
+    };
+  }
+
+  function persist() {
+    var patch = collect();
+    google.script.run
+      .withSuccessHandler(function (s) { S = s; if (current) render(current); })
+      .saveSettings(patch);
+  }
+
+  function onCtxInput() {
+    var el = document.getElementById('projectContext');
+    if (el.value.length > 4000) el.value = el.value.slice(0, 4000);
+    document.getElementById('ctxCount').textContent = el.value.length;
+  }
+
+  function draftContext() {
+    var btn = document.getElementById('btnDraft');
+    btn.disabled = true;
+    btn.textContent = 'Reading sheet…';
+    setMsg('');
+    google.script.run
+      .withSuccessHandler(function (text) {
+        btn.disabled = false;
+        btn.textContent = 'Draft from sheet';
+        var el = document.getElementById('projectContext');
+        var existing = el.value.trim();
+        el.value = existing ? existing + '\n\n' + text : text;
+        onCtxInput();
+        persist();
+        setMsg('Draft added — read it and correct anything wrong before relying on it.', 'ok-msg');
+      })
+      .withFailureHandler(function (e) {
+        btn.disabled = false;
+        btn.textContent = 'Draft from sheet';
+        setMsg(e.message || String(e), 'err');
+      })
+      .draftProjectContext();
+  }
+
+  function onTemp() {
+    document.getElementById('tempVal').textContent =
+      Number(document.getElementById('temperature').value).toFixed(2);
+  }
+
+  function saveKey() {
+    var v = document.getElementById('apiKey').value;
+    if (!v.trim()) { setMsg('Paste a key first.', 'err'); return; }
+    google.script.run
+      .withSuccessHandler(function () {
+        document.getElementById('apiKey').value = '';
+        setMsg('Key saved.', 'ok-msg');
+        setDot('ok');
+        refreshModels(true);
+      })
+      .withFailureHandler(function (e) { setMsg(e.message, 'err'); })
+      .saveApiKey(v);
+  }
+
+  function testConn() {
+    setMsg('Testing…');
+    google.script.run
+      .withSuccessHandler(function (m) { setMsg(m, 'ok-msg'); setDot('ok'); })
+      .withFailureHandler(function (e) { setMsg(e.message, 'err'); setDot('err'); })
+      .testConnection(document.getElementById('model').value);
+  }
+
+  /* ---------- chrome ---------- */
+  function setDot(cls) {
+    document.getElementById('dot').className = 'dot' + (cls ? ' ' + cls : '');
+  }
+  function setMsg(text, cls) {
+    var el = document.getElementById('msg');
+    el.innerHTML = '';
+    if (!text) return;
+    var d = document.createElement('div');
+    d.className = cls || 'hint';
+    d.textContent = text;
+    el.appendChild(d);
+  }
+  function resetButton() {
+    var b = document.getElementById('btnSuggest');
+    b.disabled = false;
+    b.textContent = 'Suggest';
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); requestSuggestions(); }
+    if (lastResult && !e.ctrlKey && !e.metaKey && /^[1-5]$/.test(e.key) &&
+        document.activeElement.tagName !== 'INPUT' &&
+        document.activeElement.tagName !== 'TEXTAREA') {
+      var idx = Number(e.key) - 1;
+      if (lastResult.completions[idx]) { e.preventDefault(); apply(lastResult.completions[idx]); }
+    }
+  });
+
+  boot();
+</script>
+</body>
+</html>
